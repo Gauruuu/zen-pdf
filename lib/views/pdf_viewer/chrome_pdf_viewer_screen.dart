@@ -37,13 +37,26 @@ class _ChromePdfViewerScreenState extends State<ChromePdfViewerScreen> {
   int _totalPages = 0;
   double _zoomLevel = 1.0;
   bool _showThumbnails = false;
+  
+  // Search State
+  bool _isSearchOpen = false;
+  final TextEditingController _searchQueryController = TextEditingController();
+  final FocusNode _searchFocusNode = FocusNode();
+  
   late final PdfViewerController _pdfViewerController;
+  late final PdfTextSearcher _textSearcher;
 
   @override
   void initState() {
     super.initState();
     _pdfViewerController = PdfViewerController();
     _pdfViewerController.addListener(_onViewerControllerUpdate);
+    
+    _textSearcher = PdfTextSearcher(_pdfViewerController);
+    _textSearcher.addListener(() {
+      if (mounted) setState(() {});
+    });
+
     if (widget.initialBytes != null) {
       _loadPdfFromBytes(widget.initialBytes!, widget.initialFileName ?? 'Document.pdf');
     } else if (widget.initialFilePath != null) {
@@ -69,6 +82,9 @@ class _ChromePdfViewerScreenState extends State<ChromePdfViewerScreen> {
   @override
   void dispose() {
     _pdfViewerController.removeListener(_onViewerControllerUpdate);
+    _textSearcher.dispose();
+    _searchQueryController.dispose();
+    _searchFocusNode.dispose();
     super.dispose();
   }
 
@@ -88,6 +104,9 @@ class _ChromePdfViewerScreenState extends State<ChromePdfViewerScreen> {
       _isLoading = true;
       _filePath = path;
       _fileName = p.basename(path);
+      _isSearchOpen = false;
+      _searchQueryController.clear();
+      _textSearcher.resetTextSearch();
     });
 
     try {
@@ -98,7 +117,7 @@ class _ChromePdfViewerScreenState extends State<ChromePdfViewerScreen> {
       if (mounted) {
         setState(() => _isLoading = false);
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error loading PDF: ')),
+          SnackBar(content: Text('Error loading PDF: $e')),
         );
       }
     }
@@ -177,7 +196,7 @@ class _ChromePdfViewerScreenState extends State<ChromePdfViewerScreen> {
   }
 
   void _jumpToPageDialog() async {
-    final controller = TextEditingController(text: '');
+    final controller = TextEditingController(text: '$_currentPage');
     final target = await showDialog<int>(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -187,7 +206,7 @@ class _ChromePdfViewerScreenState extends State<ChromePdfViewerScreen> {
           keyboardType: TextInputType.number,
           autofocus: true,
           decoration: InputDecoration(
-            labelText: 'Page Number (1 - )',
+            labelText: 'Page Number (1 - $_totalPages)',
             hintText: 'Enter page number',
           ),
         ),
@@ -238,6 +257,15 @@ class _ChromePdfViewerScreenState extends State<ChromePdfViewerScreen> {
           ),
         ),
       );
+    } else if (_pdfBytes != null) {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => const DocumentConverterScreen(
+            initialMode: ConverterMode.pdfToAny,
+          ),
+        ),
+      );
     }
   }
 
@@ -259,6 +287,18 @@ class _ChromePdfViewerScreenState extends State<ChromePdfViewerScreen> {
     }
   }
 
+  void _toggleSearch() {
+    setState(() {
+      _isSearchOpen = !_isSearchOpen;
+      if (_isSearchOpen) {
+        _searchFocusNode.requestFocus();
+      } else {
+        _searchQueryController.clear();
+        _textSearcher.resetTextSearch();
+      }
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -267,6 +307,7 @@ class _ChromePdfViewerScreenState extends State<ChromePdfViewerScreen> {
         child: Column(
           children: [
             _buildChromeAppBar(),
+            if (_isSearchOpen && _pdfBytes != null) _buildSearchBar(),
             Expanded(
               child: _isLoading
                   ? const Center(
@@ -294,7 +335,7 @@ class _ChromePdfViewerScreenState extends State<ChromePdfViewerScreen> {
   Widget _buildChromeAppBar() {
     return LayoutBuilder(
       builder: (context, constraints) {
-        final isWide = constraints.maxWidth >= 650;
+        final isWide = constraints.maxWidth >= 720;
         return Container(
           height: 52,
           padding: const EdgeInsets.symmetric(horizontal: 6),
@@ -339,6 +380,20 @@ class _ChromePdfViewerScreenState extends State<ChromePdfViewerScreen> {
               ),
 
               if (_pdfBytes != null) ...[
+                // Search Button (Always accessible)
+                IconButton(
+                  icon: Icon(
+                    Icons.search,
+                    color: _isSearchOpen ? const Color(0xFF8AB4F8) : Colors.white70,
+                    size: 20,
+                  ),
+                  tooltip: 'Search in PDF (Find Text)',
+                  padding: const EdgeInsets.all(6),
+                  constraints: const BoxConstraints(),
+                  onPressed: _toggleSearch,
+                ),
+                const SizedBox(width: 4),
+
                 // Page Indicator: [ 1 ] / N (Clickable jump)
                 InkWell(
                   onTap: _jumpToPageDialog,
@@ -353,11 +408,11 @@ class _ChromePdfViewerScreenState extends State<ChromePdfViewerScreen> {
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         Text(
-                          '',
+                          '$_currentPage',
                           style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12),
                         ),
                         Text(
-                          ' / ',
+                          ' / $_totalPages',
                           style: const TextStyle(color: Colors.white70, fontSize: 12),
                         ),
                       ],
@@ -382,7 +437,7 @@ class _ChromePdfViewerScreenState extends State<ChromePdfViewerScreen> {
                     child: Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
                       child: Text(
-                        '%',
+                        '${(_zoomLevel * 100).toInt()}%',
                         style: const TextStyle(color: Colors.white70, fontSize: 12, fontWeight: FontWeight.w600),
                       ),
                     ),
@@ -453,6 +508,9 @@ class _ChromePdfViewerScreenState extends State<ChromePdfViewerScreen> {
                     color: const Color(0xFF2D3033),
                     onSelected: (val) {
                       switch (val) {
+                        case 'search':
+                          _toggleSearch();
+                          break;
                         case 'convert':
                           _convertToOtherFormats();
                           break;
@@ -474,6 +532,16 @@ class _ChromePdfViewerScreenState extends State<ChromePdfViewerScreen> {
                       }
                     },
                     itemBuilder: (context) => [
+                      const PopupMenuItem(
+                        value: 'search',
+                        child: Row(
+                          children: [
+                            Icon(Icons.search, color: Color(0xFF8AB4F8), size: 18),
+                            SizedBox(width: 10),
+                            Text('Search in PDF', style: TextStyle(color: Colors.white, fontSize: 13)),
+                          ],
+                        ),
+                      ),
                       const PopupMenuItem(
                         value: 'convert',
                         child: Row(
@@ -537,6 +605,92 @@ class _ChromePdfViewerScreenState extends State<ChromePdfViewerScreen> {
     );
   }
 
+  Widget _buildSearchBar() {
+    final matchesCount = _textSearcher.matches.length;
+    final currentMatchIdx = _textSearcher.currentIndex != null ? _textSearcher.currentIndex! + 1 : 0;
+    
+    return Container(
+      height: 48,
+      padding: const EdgeInsets.symmetric(horizontal: 12),
+      decoration: const BoxDecoration(
+        color: Color(0xFF292A2D),
+        border: Border(bottom: BorderSide(color: Color(0xFF3C4043), width: 1)),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.search, color: Color(0xFF8AB4F8), size: 20),
+          const SizedBox(width: 8),
+          Expanded(
+            child: TextField(
+              controller: _searchQueryController,
+              focusNode: _searchFocusNode,
+              style: const TextStyle(color: Colors.white, fontSize: 13.5),
+              decoration: const InputDecoration(
+                hintText: 'Search text in document...',
+                hintStyle: TextStyle(color: Colors.white38, fontSize: 13.5),
+                border: InputBorder.none,
+                isDense: true,
+                contentPadding: EdgeInsets.symmetric(vertical: 8),
+              ),
+              onChanged: (val) {
+                _textSearcher.startTextSearch(val.trim());
+              },
+              onSubmitted: (_) {
+                _textSearcher.goToNextMatch();
+              },
+            ),
+          ),
+          if (_textSearcher.isSearching) ...[
+            const SizedBox(
+              width: 14,
+              height: 14,
+              child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF8AB4F8)),
+            ),
+            const SizedBox(width: 8),
+          ],
+          if (_searchQueryController.text.isNotEmpty) ...[
+            Text(
+              matchesCount > 0 ? '$currentMatchIdx of $matchesCount' : (_textSearcher.isSearching ? 'Searching...' : '0 matches'),
+              style: TextStyle(
+                color: matchesCount > 0 ? const Color(0xFF8AB4F8) : Colors.redAccent,
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            const SizedBox(width: 4),
+            IconButton(
+              icon: const Icon(Icons.keyboard_arrow_up, color: Colors.white70, size: 20),
+              tooltip: 'Previous match',
+              padding: const EdgeInsets.all(4),
+              constraints: const BoxConstraints(),
+              onPressed: matchesCount > 0 ? () => _textSearcher.goToPrevMatch() : null,
+            ),
+            IconButton(
+              icon: const Icon(Icons.keyboard_arrow_down, color: Colors.white70, size: 20),
+              tooltip: 'Next match',
+              padding: const EdgeInsets.all(4),
+              constraints: const BoxConstraints(),
+              onPressed: matchesCount > 0 ? () => _textSearcher.goToNextMatch() : null,
+            ),
+          ],
+          IconButton(
+            icon: const Icon(Icons.close, color: Colors.white70, size: 18),
+            tooltip: 'Close search',
+            padding: const EdgeInsets.all(4),
+            constraints: const BoxConstraints(),
+            onPressed: () {
+              setState(() {
+                _isSearchOpen = false;
+                _searchQueryController.clear();
+                _textSearcher.resetTextSearch();
+              });
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildDivider() {
     return Container(
       width: 1,
@@ -591,7 +745,7 @@ class _ChromePdfViewerScreenState extends State<ChromePdfViewerScreen> {
                         const Icon(Icons.description, color: Colors.white70, size: 36),
                         const SizedBox(height: 4),
                         Text(
-                          'Page ',
+                          'Page $pageNum',
                           style: TextStyle(
                             color: isSelected ? const Color(0xFF8AB4F8) : Colors.white60,
                             fontSize: 11,
@@ -621,6 +775,9 @@ class _ChromePdfViewerScreenState extends State<ChromePdfViewerScreen> {
         maxScale: 50.0,
         minScale: 0.1,
         enableTextSelection: false,
+        pagePaintCallbacks: [
+          _textSearcher.pageTextMatchPaintCallback,
+        ],
         viewerOverlayBuilder: (context, size, handleLinkTap) => [
           PdfViewerScrollThumb(
             controller: _pdfViewerController,
@@ -642,7 +799,7 @@ class _ChromePdfViewerScreenState extends State<ChromePdfViewerScreen> {
                       ],
                     ),
                     child: Text(
-                      'Page  / ',
+                      'Page $pageNumber / $_totalPages',
                       style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold),
                     ),
                   ),
@@ -705,7 +862,7 @@ class _ChromePdfViewerScreenState extends State<ChromePdfViewerScreen> {
             ),
             const SizedBox(height: 8),
             const Text(
-              'Ultra-fast, butter-smooth 120 FPS PDF viewing powered by pdfrx',
+              'Ultra-fast, butter-smooth 120 FPS PDF viewing with text search',
               style: TextStyle(color: Colors.white70, fontSize: 13),
               textAlign: TextAlign.center,
             ),
