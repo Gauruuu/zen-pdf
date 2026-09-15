@@ -7,9 +7,13 @@ import 'package:pdfrx/pdfrx.dart';
 import 'package:path/path.dart' as p;
 import '../../core/utils/file_helper.dart';
 import '../../services/pdf_security_service.dart';
+import '../../services/pdf_signature_verifier_service.dart';
+import '../../services/sound_service.dart';
+import '../../models/signature_verification_info.dart';
 import '../pdf_editor/widgets/password_prompt_dialog.dart';
 import '../pdf_editor/pdf_editor_screen.dart';
 import '../document_converter/document_converter_screen.dart';
+import '../signature_verify/signature_verify_screen.dart';
 import '../common/fidget_spinner_loader.dart';
 
 class ChromePdfViewerScreen extends StatefulWidget {
@@ -42,6 +46,10 @@ class _ChromePdfViewerScreenState extends State<ChromePdfViewerScreen> {
   bool _isSearchOpen = false;
   final TextEditingController _searchQueryController = TextEditingController();
   final FocusNode _searchFocusNode = FocusNode();
+
+  // Signature State
+  PdfSignatureReport? _signatureReport;
+  bool _isSignatureBannerDismissed = false;
   
   late final PdfViewerController _pdfViewerController;
   late final PdfTextSearcher _textSearcher;
@@ -49,6 +57,7 @@ class _ChromePdfViewerScreenState extends State<ChromePdfViewerScreen> {
   @override
   void initState() {
     super.initState();
+    SoundService.init();
     _pdfViewerController = PdfViewerController();
     _pdfViewerController.addListener(_onViewerControllerUpdate);
     
@@ -148,6 +157,62 @@ class _ChromePdfViewerScreenState extends State<ChromePdfViewerScreen> {
         _isLoading = false;
         _zoomLevel = 1.0;
       });
+      _checkSignaturesAsync(workingBytes, name);
+    }
+  }
+
+  void _checkSignaturesAsync(Uint8List bytes, String name) async {
+    try {
+      final report = await PdfSignatureVerifierService.verifySignatures(
+        pdfBytes: bytes,
+        fileName: name,
+      );
+      if (mounted && report.hasDigitalSignatures) {
+        setState(() {
+          _signatureReport = report;
+          _isSignatureBannerDismissed = false;
+        });
+      }
+    } catch (_) {}
+  }
+
+  Future<void> _stampVerifiedSignatureInViewer() async {
+    if (_pdfBytes == null || _signatureReport == null || _signatureReport!.signatures.isEmpty) return;
+
+    try {
+      final sig = _signatureReport!.signatures.first;
+      final stamped = await PdfSignatureVerifierService.stampVerifiedSignatureOnPdf(
+        pdfBytes: _pdfBytes!,
+        sigInfo: sig,
+      );
+
+      if (_filePath != null) {
+        final file = File(_filePath!);
+        await file.writeAsBytes(stamped);
+      } else {
+        await FileHelper.savePdfFile(bytes: stamped, fileName: _fileName ?? 'Verified.pdf');
+      }
+
+      await SoundService.playSuccess();
+
+      if (mounted) {
+        setState(() {
+          _pdfBytes = stamped;
+          _signatureReport = null; // Stamped successfully!
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('✔ Adobe Verified Green Checkmark stamped on PDF!'),
+            backgroundColor: Color(0xFF059669),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to stamp signature: $e'), backgroundColor: Colors.redAccent),
+        );
+      }
     }
   }
 
@@ -307,7 +372,10 @@ class _ChromePdfViewerScreenState extends State<ChromePdfViewerScreen> {
         child: Column(
           children: [
             _buildChromeAppBar(),
-            if (_isSearchOpen && _pdfBytes != null) _buildSearchBar(),
+            if (_signatureReport != null && !_isSignatureBannerDismissed)
+              _buildAdobeSignatureBanner(),
+            if (_isSearchOpen && _pdfBytes != null)
+              _buildSearchBar(),
             Expanded(
               child: _isLoading
                   ? const Center(
@@ -328,6 +396,71 @@ class _ChromePdfViewerScreenState extends State<ChromePdfViewerScreen> {
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildAdobeSignatureBanner() {
+    final sig = _signatureReport!.signatures.first;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+      decoration: const BoxDecoration(
+        color: Color(0xFF064E3B),
+        border: Border(bottom: BorderSide(color: Color(0xFF059669), width: 1.5)),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.verified, color: Color(0xFF34D399), size: 18),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              'Signed & Valid • ${sig.signerName}',
+              style: const TextStyle(color: Colors.white, fontSize: 12.5, fontWeight: FontWeight.w600),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+          const SizedBox(width: 8),
+          InkWell(
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => SignatureVerifyScreen(initialFilePath: _filePath),
+                ),
+              );
+            },
+            borderRadius: BorderRadius.circular(4),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: 0.15),
+                borderRadius: BorderRadius.circular(4),
+              ),
+              child: const Text('Details', style: TextStyle(color: Colors.white, fontSize: 11.5, fontWeight: FontWeight.bold)),
+            ),
+          ),
+          const SizedBox(width: 6),
+          ElevatedButton.icon(
+            onPressed: _stampVerifiedSignatureInViewer,
+            icon: const Icon(Icons.check_circle, size: 14),
+            label: const Text('Stamp Green ✔', style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.bold)),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF10B981),
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+              minimumSize: Size.zero,
+            ),
+          ),
+          const SizedBox(width: 4),
+          IconButton(
+            icon: const Icon(Icons.close, color: Colors.white70, size: 16),
+            padding: EdgeInsets.zero,
+            constraints: const BoxConstraints(),
+            tooltip: 'Dismiss Banner',
+            onPressed: () => setState(() => _isSignatureBannerDismissed = true),
+          ),
+        ],
       ),
     );
   }

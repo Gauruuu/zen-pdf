@@ -14,6 +14,6 @@ void main() {
 
     // Initial empty state has Choose PDF button
     expect(find.text('Chrome-Style PDF Viewer'), findsOneWidget);
-    expect(find.byIcon(Icons.folder_open), findsOneWidget);
+    expect(find.text('Choose PDF to View'), findsOneWidget);
   });
 }
