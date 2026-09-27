@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:image_picker/image_picker.dart';
@@ -7,6 +8,7 @@ import '../../core/utils/file_helper.dart';
 import '../../models/scanned_image.dart';
 import '../../services/pdf_generator_service.dart';
 import '../../services/sound_service.dart';
+import '../gdrm/gdrm_export_dialog.dart';
 import 'image_filter_editor.dart';
 
 class ImageToPdfScreen extends StatefulWidget {
@@ -109,7 +111,6 @@ class _ImageToPdfScreenState extends State<ImageToPdfScreen> {
   }
 
   String _progressStatus = 'Preparing pictures...';
-  double _progressPercent = 0.0;
 
   Future<void> _createPdf() async {
     if (_scannedImages.isEmpty) {
@@ -122,7 +123,6 @@ class _ImageToPdfScreenState extends State<ImageToPdfScreen> {
     setState(() {
       _isCreating = true;
       _progressStatus = 'Preparing pictures...';
-      _progressPercent = 0.0;
     });
 
     try {
@@ -134,7 +134,6 @@ class _ImageToPdfScreenState extends State<ImageToPdfScreen> {
         onProgress: (current, total, status) {
           if (mounted) {
             setState(() {
-              _progressPercent = current / total;
               _progressStatus = status;
             });
           }
@@ -150,7 +149,7 @@ class _ImageToPdfScreenState extends State<ImageToPdfScreen> {
 
       if (mounted) {
         setState(() => _isCreating = false);
-        _showSuccessDialog(savedFile.path);
+        _showSuccessDialog(savedFile.path, pdfBytes);
       }
     } catch (e) {
       if (mounted) {
@@ -162,7 +161,45 @@ class _ImageToPdfScreenState extends State<ImageToPdfScreen> {
     }
   }
 
-  void _showSuccessDialog(String filePath) {
+  Future<void> _exportDirectlyAsGdrm() async {
+    if (_scannedImages.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please add at least one picture first.')),
+      );
+      return;
+    }
+
+    setState(() {
+      _isCreating = true;
+      _progressStatus = 'Building PDF payload...';
+    });
+
+    try {
+      final pdfBytes = await PdfGeneratorService.createPdfFromImages(
+        images: _scannedImages,
+        pageSize: _pageSize,
+        margin: _pageMargin,
+      );
+
+      if (!mounted) return;
+      setState(() => _isCreating = false);
+
+      GdrmExportDialog.show(
+        context,
+        pdfBytes: pdfBytes,
+        defaultFileName: _fileNameController.text.trim().isNotEmpty ? _fileNameController.text.trim() : 'Scanned_Doc',
+      );
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isCreating = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to prepare GDRM: $e'), backgroundColor: Colors.red),
+        );
+      }
+    }
+  }
+
+  void _showSuccessDialog(String filePath, Uint8List pdfBytes) {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -190,6 +227,22 @@ class _ImageToPdfScreenState extends State<ImageToPdfScreen> {
           TextButton(
             onPressed: () => Navigator.pop(ctx),
             child: const Text('Close'),
+          ),
+          OutlinedButton.icon(
+            style: OutlinedButton.styleFrom(
+              foregroundColor: const Color(0xFF06B6D4),
+              side: const BorderSide(color: Color(0xFF06B6D4)),
+            ),
+            onPressed: () {
+              Navigator.pop(ctx);
+              GdrmExportDialog.show(
+                context,
+                pdfBytes: pdfBytes,
+                defaultFileName: _fileNameController.text,
+              );
+            },
+            icon: const Icon(Icons.shield_moon_rounded, size: 16),
+            label: const Text('Export .gdrm'),
           ),
           OutlinedButton.icon(
             onPressed: () {
@@ -362,7 +415,7 @@ class _ImageToPdfScreenState extends State<ImageToPdfScreen> {
               color: Colors.white,
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withOpacity(0.05),
+                  color: Colors.black.withValues(alpha: 0.05),
                   blurRadius: 10,
                   offset: const Offset(0, -4),
                 ),
@@ -441,25 +494,46 @@ class _ImageToPdfScreenState extends State<ImageToPdfScreen> {
                   ],
                 ),
                 const SizedBox(height: 14),
-                ElevatedButton(
-                  onPressed: _isCreating ? null : _createPdf,
-                  child: _isCreating
-                      ? Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            const SizedBox(
-                              width: 18,
-                              height: 18,
-                              child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
-                            ),
-                            const SizedBox(width: 10),
-                            Text(
-                              _progressStatus,
-                              style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold),
-                            ),
-                          ],
-                        )
-                      : Text('Create PDF (${_scannedImages.length} ${_scannedImages.length == 1 ? "page" : "pages"})'),
+                Row(
+                  children: [
+                    Expanded(
+                      flex: 3,
+                      child: ElevatedButton(
+                        onPressed: _isCreating ? null : _createPdf,
+                        child: _isCreating
+                            ? Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  const SizedBox(
+                                    width: 18,
+                                    height: 18,
+                                    child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
+                                  ),
+                                  const SizedBox(width: 10),
+                                  Text(
+                                    _progressStatus,
+                                    style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold),
+                                  ),
+                                ],
+                              )
+                            : Text('Create PDF (${_scannedImages.length} ${_scannedImages.length == 1 ? "page" : "pages"})'),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      flex: 2,
+                      child: OutlinedButton.icon(
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: const Color(0xFF06B6D4),
+                          side: const BorderSide(color: Color(0xFF06B6D4), width: 1.5),
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                        ),
+                        onPressed: _isCreating ? null : _exportDirectlyAsGdrm,
+                        icon: const Icon(Icons.shield_moon_rounded, size: 16),
+                        label: const Text('Export .gdrm', style: TextStyle(fontWeight: FontWeight.bold)),
+                      ),
+                    ),
+                  ],
                 ),
               ],
             ),

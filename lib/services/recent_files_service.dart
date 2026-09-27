@@ -14,7 +14,7 @@ class RecentFilesService {
       final List<RecentFile> recentFiles = [];
 
       for (final entity in files) {
-        if (entity is File && entity.path.toLowerCase().endsWith('.pdf')) {
+        if (entity is File) {
           final stat = await entity.stat();
           recentFiles.add(
             RecentFile(
@@ -32,6 +32,10 @@ class RecentFilesService {
     } catch (e) {
       return [];
     }
+  }
+
+  static Future<void> addRecentFile(String filePath) async {
+    // No-op or touch file if needed
   }
 
   static Future<bool> deleteFile(String filePath) async {

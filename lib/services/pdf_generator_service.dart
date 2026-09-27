@@ -41,7 +41,7 @@ class PdfGeneratorService {
     for (int i = 0; i < total; i++) {
       final item = images[i];
       if (onProgress != null) {
-        onProgress(i + 1, total, 'Enhancing page ${i + 1} of $total...');
+        onProgress(i + 1, total, 'Adding page ${i + 1} of $total...');
       }
 
       final processedBytes = await ImageFilterService.processImage(

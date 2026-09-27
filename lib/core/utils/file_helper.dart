@@ -47,6 +47,56 @@ class FileHelper {
     return file;
   }
 
+  static String getFileName(String filePath) => p.basename(filePath);
+
+  static String getFileExtension(String filePath) => p.extension(filePath).replaceFirst('.', '');
+
+  static Future<File> saveDocumentFile({
+    required Uint8List bytes,
+    required String fileName,
+  }) async {
+    final baseDir = await getAppDocumentsPath();
+    String safeName = fileName.trim().replaceAll(RegExp(r'[\\/:*?"<>|]'), '_');
+    
+    final ext = p.extension(safeName);
+    final nameWithoutExt = p.basenameWithoutExtension(safeName);
+    
+    String finalPath = p.join(baseDir, safeName);
+    int counter = 1;
+    while (await File(finalPath).exists()) {
+      finalPath = p.join(baseDir, '${nameWithoutExt}_$counter$ext');
+      counter++;
+    }
+    
+    final file = File(finalPath);
+    await file.writeAsBytes(bytes);
+    await SoundService.playSuccess();
+    return file;
+  }
+
+  static Future<File> saveDocumentText({
+    required String content,
+    required String fileName,
+  }) async {
+    final baseDir = await getAppDocumentsPath();
+    String safeName = fileName.trim().replaceAll(RegExp(r'[\\/:*?"<>|]'), '_');
+    
+    final ext = p.extension(safeName);
+    final nameWithoutExt = p.basenameWithoutExtension(safeName);
+    
+    String finalPath = p.join(baseDir, safeName);
+    int counter = 1;
+    while (await File(finalPath).exists()) {
+      finalPath = p.join(baseDir, '${nameWithoutExt}_$counter$ext');
+      counter++;
+    }
+    
+    final file = File(finalPath);
+    await file.writeAsString(content);
+    await SoundService.playSuccess();
+    return file;
+  }
+
   static Future<void> openFile(String filePath) async {
     await OpenFilex.open(filePath);
   }
@@ -56,7 +106,7 @@ class FileHelper {
     await SharePlus.instance.share(
       ShareParams(
         files: [xFile],
-        text: text ?? 'Here is your PDF document created with ZenPDF.',
+        text: text ?? 'Here is your document created with ZenPDF.',
       ),
     );
   }

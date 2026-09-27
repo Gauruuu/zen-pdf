@@ -9,6 +9,8 @@ import io.flutter.plugin.common.MethodChannel
 import java.io.File
 import java.io.FileOutputStream
 
+import android.provider.OpenableColumns
+
 class MainActivity : FlutterActivity() {
     private val CHANNEL = "com.zenpdf.app/intents"
     private var initialPdfPath: String? = null
@@ -24,8 +26,8 @@ class MainActivity : FlutterActivity() {
     }
 
     private fun handleIntent(intent: Intent?) {
-        if (intent?.action == Intent.ACTION_VIEW) {
-            val uri: Uri? = intent.data
+        if (intent?.action == Intent.ACTION_VIEW || intent?.action == Intent.ACTION_SEND) {
+            val uri: Uri? = intent.data ?: intent.getParcelableExtra(Intent.EXTRA_STREAM)
             if (uri != null) {
                 initialPdfPath = copyUriToTempFile(uri)
             }
@@ -37,8 +39,30 @@ class MainActivity : FlutterActivity() {
             if (uri.scheme == "file") {
                 return uri.path
             }
+            var fileName = "opened_document.pdf"
+            contentResolver.query(uri, null, null, null, null)?.use { cursor ->
+                if (cursor.moveToFirst()) {
+                    val nameIndex = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
+                    if (nameIndex != -1) {
+                        val name = cursor.getString(nameIndex)
+                        if (!name.isNullOrEmpty()) {
+                            fileName = name
+                        }
+                    }
+                }
+            }
+
+            if (fileName == "opened_document.pdf" && uri.lastPathSegment != null) {
+                val segment = uri.lastPathSegment!!
+                if (segment.contains(".")) {
+                    fileName = segment
+                }
+            }
+
+            // Sanitize file name
+            val safeName = fileName.replace("[\\\\/:*?\"<>|]".toRegex(), "_")
+            val tempFile = File(cacheDir, "zen_opened_$safeName")
             val inputStream = contentResolver.openInputStream(uri) ?: return null
-            val tempFile = File(cacheDir, "opened_document.pdf")
             val outputStream = FileOutputStream(tempFile)
             inputStream.copyTo(outputStream)
             inputStream.close()

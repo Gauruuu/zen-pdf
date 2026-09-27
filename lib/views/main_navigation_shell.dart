@@ -5,7 +5,7 @@ import 'image_to_pdf/image_to_pdf_screen.dart';
 import 'pdf_editor/pdf_editor_screen.dart';
 import 'pdf_organizer/pdf_organizer_screen.dart';
 import 'security/pdf_security_screen.dart';
-import 'pdf_viewer/chrome_pdf_viewer_screen.dart';
+import 'universal_studio/universal_studio_router.dart';
 
 class MainNavigationShell extends StatefulWidget {
   const MainNavigationShell({super.key});
@@ -28,11 +28,10 @@ class _MainNavigationShellState extends State<MainNavigationShell> {
       const channel = MethodChannel('com.zenpdf.app/intents');
       final String? initialPath = await channel.invokeMethod<String>('getInitialPdfPath');
       if (initialPath != null && initialPath.isNotEmpty && mounted) {
-        Navigator.push(
+        await UniversalStudioRouter.openFileInStudio(
           context,
-          MaterialPageRoute(
-            builder: (_) => ChromePdfViewerScreen(initialFilePath: initialPath),
-          ),
+          initialPath,
+          isExternalIntent: true,
         );
       }
     } catch (_) {}

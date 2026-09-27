@@ -1,6 +1,7 @@
+import 'dart:async';
 import 'dart:io';
-import 'dart:typed_data';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:printing/printing.dart';
 import 'package:pdfrx/pdfrx.dart';
@@ -15,17 +16,20 @@ import '../pdf_editor/pdf_editor_screen.dart';
 import '../document_converter/document_converter_screen.dart';
 import '../signature_verify/signature_verify_screen.dart';
 import '../common/fidget_spinner_loader.dart';
+import '../gdrm/gdrm_export_dialog.dart';
 
 class ChromePdfViewerScreen extends StatefulWidget {
   final String? initialFilePath;
   final Uint8List? initialBytes;
   final String? initialFileName;
+  final bool isExternalIntent;
 
   const ChromePdfViewerScreen({
     super.key,
     this.initialFilePath,
     this.initialBytes,
     this.initialFileName,
+    this.isExternalIntent = false,
   });
 
   @override
@@ -36,12 +40,17 @@ class _ChromePdfViewerScreenState extends State<ChromePdfViewerScreen> {
   String? _filePath;
   String? _fileName;
   Uint8List? _pdfBytes;
+  PdfDocument? _document;
   bool _isLoading = false;
   int _currentPage = 1;
   int _totalPages = 0;
   double _zoomLevel = 1.0;
   bool _showThumbnails = false;
   
+  // Scroll Thumb Auto-Hide State
+  bool _isScrollThumbVisible = false;
+  Timer? _scrollHideTimer;
+
   // Search State
   bool _isSearchOpen = false;
   final TextEditingController _searchQueryController = TextEditingController();
@@ -73,15 +82,66 @@ class _ChromePdfViewerScreenState extends State<ChromePdfViewerScreen> {
     }
   }
 
+  void _showScrollThumbTemporarily() {
+    if (!mounted) return;
+    if (!_isScrollThumbVisible) {
+      setState(() {
+        _isScrollThumbVisible = true;
+      });
+    }
+    _scrollHideTimer?.cancel();
+    _scrollHideTimer = Timer(const Duration(milliseconds: 1800), () {
+      if (mounted && _isScrollThumbVisible) {
+        setState(() {
+          _isScrollThumbVisible = false;
+        });
+      }
+    });
+  }
+
+  int _calculateActivePage() {
+    if (!_pdfViewerController.isReady || _document == null || _document!.pages.isEmpty) {
+      return _pdfViewerController.pageNumber ?? _currentPage;
+    }
+    
+    try {
+      final rect = _pdfViewerController.visibleRect;
+      final centerY = rect.center.dy;
+      
+      double accumulatedHeight = 16.0;
+      const margin = 16.0;
+      
+      for (int i = 0; i < _document!.pages.length; i++) {
+        final page = _document!.pages[i];
+        final pageTop = accumulatedHeight;
+        final pageBottom = accumulatedHeight + page.height;
+        
+        if (centerY >= pageTop - 20 && centerY < pageBottom + margin) {
+          return page.pageNumber;
+        }
+        accumulatedHeight += page.height + margin;
+      }
+      
+      if (centerY >= accumulatedHeight - margin) {
+        return _document!.pages.length;
+      }
+    } catch (_) {}
+    
+    return _pdfViewerController.pageNumber ?? _currentPage;
+  }
+
   void _onViewerControllerUpdate() {
     if (_pdfViewerController.isReady && mounted) {
-      final page = _pdfViewerController.pageNumber ?? 1;
-      final count = _pdfViewerController.pageCount;
+      final page = _calculateActivePage();
+      final count = _document?.pages.length ?? (_pdfViewerController.pageCount > 0 ? _pdfViewerController.pageCount : _totalPages);
       final zoom = _pdfViewerController.currentZoom;
+      
+      _showScrollThumbTemporarily();
+
       if (page != _currentPage || count != _totalPages || (zoom - _zoomLevel).abs() > 0.05) {
         setState(() {
           _currentPage = page;
-          _totalPages = count;
+          if (count > 0) _totalPages = count;
           _zoomLevel = zoom;
         });
       }
@@ -90,6 +150,7 @@ class _ChromePdfViewerScreenState extends State<ChromePdfViewerScreen> {
 
   @override
   void dispose() {
+    _scrollHideTimer?.cancel();
     _pdfViewerController.removeListener(_onViewerControllerUpdate);
     _textSearcher.dispose();
     _searchQueryController.dispose();
@@ -366,12 +427,19 @@ class _ChromePdfViewerScreenState extends State<ChromePdfViewerScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(0xFF323639), // Authentic Chrome PDF background
-      body: SafeArea(
-        child: Column(
-          children: [
-            _buildChromeAppBar(),
+    return PopScope(
+      canPop: !widget.isExternalIntent,
+      onPopInvokedWithResult: (didPop, result) {
+        if (!didPop && widget.isExternalIntent) {
+          SystemNavigator.pop();
+        }
+      },
+      child: Scaffold(
+        backgroundColor: const Color(0xFF323639), // Authentic Chrome PDF background
+        body: SafeArea(
+          child: Column(
+            children: [
+              _buildChromeAppBar(),
             if (_signatureReport != null && !_isSignatureBannerDismissed)
               _buildAdobeSignatureBanner(),
             if (_isSearchOpen && _pdfBytes != null)
@@ -397,8 +465,9 @@ class _ChromePdfViewerScreenState extends State<ChromePdfViewerScreen> {
           ],
         ),
       ),
-    );
-  }
+    ),
+  );
+}
 
   Widget _buildAdobeSignatureBanner() {
     final sig = _signatureReport!.signatures.first;
@@ -483,7 +552,13 @@ class _ChromePdfViewerScreenState extends State<ChromePdfViewerScreen> {
                 tooltip: 'Back',
                 padding: const EdgeInsets.all(8),
                 constraints: const BoxConstraints(),
-                onPressed: () => Navigator.maybePop(context),
+                onPressed: () {
+                  if (widget.isExternalIntent) {
+                    SystemNavigator.pop();
+                  } else {
+                    Navigator.maybePop(context);
+                  }
+                },
               ),
               IconButton(
                 icon: Icon(
@@ -590,6 +665,21 @@ class _ChromePdfViewerScreenState extends State<ChromePdfViewerScreen> {
                     onPressed: _printDocument,
                   ),
 
+                  // GDRM Lock & Export
+                  IconButton(
+                    icon: const Icon(Icons.shield_moon_rounded, color: Color(0xFF06B6D4), size: 20),
+                    tooltip: 'Export as .gdrm (GDRM DRM Container)',
+                    onPressed: () {
+                      if (_pdfBytes != null) {
+                        GdrmExportDialog.show(
+                          context,
+                          pdfBytes: _pdfBytes!,
+                          defaultFileName: _fileName ?? 'Document',
+                        );
+                      }
+                    },
+                  ),
+
                   // Convert / Export to Word, PPT, Excel, etc.
                   IconButton(
                     icon: const Icon(Icons.transform, color: Color(0xFF38BDF8), size: 20),
@@ -621,6 +711,21 @@ class _ChromePdfViewerScreenState extends State<ChromePdfViewerScreen> {
                 ] else ...[
                   // Mobile compact action icons
                   IconButton(
+                    icon: const Icon(Icons.shield_moon_rounded, color: Color(0xFF06B6D4), size: 20),
+                    tooltip: 'Export .gdrm',
+                    padding: const EdgeInsets.all(6),
+                    constraints: const BoxConstraints(),
+                    onPressed: () {
+                      if (_pdfBytes != null) {
+                        GdrmExportDialog.show(
+                          context,
+                          pdfBytes: _pdfBytes!,
+                          defaultFileName: _fileName ?? 'Document',
+                        );
+                      }
+                    },
+                  ),
+                  IconButton(
                     icon: const Icon(Icons.transform, color: Color(0xFF38BDF8), size: 20),
                     tooltip: 'Convert PDF',
                     padding: const EdgeInsets.all(6),
@@ -641,6 +746,15 @@ class _ChromePdfViewerScreenState extends State<ChromePdfViewerScreen> {
                     color: const Color(0xFF2D3033),
                     onSelected: (val) {
                       switch (val) {
+                        case 'gdrm':
+                          if (_pdfBytes != null) {
+                            GdrmExportDialog.show(
+                              context,
+                              pdfBytes: _pdfBytes!,
+                              defaultFileName: _fileName ?? 'Document',
+                            );
+                          }
+                          break;
                         case 'search':
                           _toggleSearch();
                           break;
@@ -665,6 +779,16 @@ class _ChromePdfViewerScreenState extends State<ChromePdfViewerScreen> {
                       }
                     },
                     itemBuilder: (context) => [
+                      const PopupMenuItem(
+                        value: 'gdrm',
+                        child: Row(
+                          children: [
+                            Icon(Icons.shield_moon_rounded, color: Color(0xFF06B6D4), size: 18),
+                            SizedBox(width: 10),
+                            Text('Export as .gdrm File', style: TextStyle(color: Colors.white, fontSize: 13)),
+                          ],
+                        ),
+                      ),
                       const PopupMenuItem(
                         value: 'search',
                         child: Row(
@@ -898,77 +1022,116 @@ class _ChromePdfViewerScreenState extends State<ChromePdfViewerScreen> {
   }
 
   Widget _buildPdfrxViewer() {
-    return PdfViewer.data(
-      _pdfBytes!,
-      sourceName: _fileName ?? 'Document.pdf',
-      controller: _pdfViewerController,
-      params: PdfViewerParams(
-        margin: 16,
-        backgroundColor: const Color(0xFF323639),
-        maxScale: 50.0,
-        minScale: 0.1,
-        enableTextSelection: false,
-        pagePaintCallbacks: [
-          _textSearcher.pageTextMatchPaintCallback,
-        ],
-        viewerOverlayBuilder: (context, size, handleLinkTap) => [
-          PdfViewerScrollThumb(
-            controller: _pdfViewerController,
-            orientation: ScrollbarOrientation.right,
-            thumbSize: const Size(28, 48),
-            margin: 4,
-            thumbBuilder: (context, thumbSize, pageNumber, controller) => Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                if (pageNumber != null && _totalPages > 1)
-                  Container(
-                    margin: const EdgeInsets.only(right: 6),
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF1A73E8),
-                      borderRadius: BorderRadius.circular(12),
-                      boxShadow: const [
-                        BoxShadow(color: Colors.black45, blurRadius: 6, offset: Offset(0, 2)),
-                      ],
+    return Listener(
+      behavior: HitTestBehavior.translucent,
+      onPointerDown: (_) => _showScrollThumbTemporarily(),
+      onPointerMove: (_) => _showScrollThumbTemporarily(),
+      onPointerSignal: (_) => _showScrollThumbTemporarily(),
+      child: NotificationListener<ScrollNotification>(
+        onNotification: (notification) {
+          _showScrollThumbTemporarily();
+          return false;
+        },
+        child: PdfViewer.data(
+          _pdfBytes!,
+          sourceName: _fileName ?? 'Document.pdf',
+          controller: _pdfViewerController,
+          params: PdfViewerParams(
+            margin: 16,
+            backgroundColor: const Color(0xFF323639),
+            maxScale: 50.0,
+            minScale: 0.1,
+            enableTextSelection: false,
+            pagePaintCallbacks: [
+              _textSearcher.pageTextMatchPaintCallback,
+            ],
+            viewerOverlayBuilder: (context, size, handleLinkTap) => [
+              PdfViewerScrollThumb(
+                controller: _pdfViewerController,
+                orientation: ScrollbarOrientation.right,
+                thumbSize: Size(_totalPages > 1 ? 110 : 36, 38),
+                margin: 6,
+                thumbBuilder: (context, thumbSize, pageNumber, controller) {
+                  final activePage = pageNumber ?? controller.pageNumber ?? _currentPage;
+                  final total = controller.pageCount > 0 ? controller.pageCount : (_totalPages > 0 ? _totalPages : 1);
+                  final isMultiPage = total > 1;
+
+                  return IgnorePointer(
+                    ignoring: !_isScrollThumbVisible,
+                    child: AnimatedSlide(
+                      offset: _isScrollThumbVisible ? Offset.zero : const Offset(1.3, 0),
+                      duration: const Duration(milliseconds: 250),
+                      curve: Curves.easeOutCubic,
+                      child: AnimatedOpacity(
+                        opacity: _isScrollThumbVisible ? 1.0 : 0.0,
+                        duration: const Duration(milliseconds: 200),
+                        child: Container(
+                          width: isMultiPage ? 110 : 36,
+                          height: thumbSize.height,
+                          alignment: Alignment.center,
+                          padding: EdgeInsets.symmetric(horizontal: isMultiPage ? 8 : 4),
+                          decoration: BoxDecoration(
+                            gradient: const LinearGradient(
+                              colors: [Color(0xFF1A73E8), Color(0xFF1557B0)],
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
+                            ),
+                            borderRadius: BorderRadius.circular(19),
+                            border: Border.all(
+                              color: Colors.white.withValues(alpha: 0.25),
+                              width: 1,
+                            ),
+                            boxShadow: const [
+                              BoxShadow(color: Colors.black45, blurRadius: 8, offset: Offset(0, 3)),
+                            ],
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              if (isMultiPage) ...[
+                                Text(
+                                  '$activePage / $total',
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.bold,
+                                    letterSpacing: 0.3,
+                                  ),
+                                ),
+                                const SizedBox(width: 4),
+                              ],
+                              const Icon(Icons.unfold_more, color: Colors.white, size: 15),
+                            ],
+                          ),
+                        ),
+                      ),
                     ),
-                    child: Text(
-                      'Page $pageNumber / $_totalPages',
-                      style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold),
-                    ),
-                  ),
-                Container(
-                  width: 24,
-                  height: thumbSize.height,
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF1A73E8),
-                    borderRadius: BorderRadius.circular(12),
-                    boxShadow: const [
-                      BoxShadow(color: Colors.black45, blurRadius: 4, offset: Offset(0, 2)),
-                    ],
-                  ),
-                  child: const Center(
-                    child: Icon(Icons.unfold_more, color: Colors.white, size: 16),
-                  ),
-                ),
-              ],
-            ),
+                  );
+                },
+              ),
+            ],
+            onViewerReady: (document, controller) {
+              if (mounted) {
+                setState(() {
+                  _document = document;
+                  _totalPages = document.pages.length;
+                  _currentPage = _calculateActivePage();
+                });
+                _showScrollThumbTemporarily();
+              }
+            },
+            onPageChanged: (pageNumber) {
+              if (mounted) {
+                final page = _calculateActivePage();
+                setState(() {
+                  _currentPage = page;
+                });
+                _showScrollThumbTemporarily();
+              }
+            },
           ),
-        ],
-        onViewerReady: (document, controller) {
-          if (mounted) {
-            setState(() {
-              _totalPages = document.pages.length;
-              _currentPage = controller.pageNumber ?? 1;
-            });
-          }
-        },
-        onPageChanged: (pageNumber) {
-          if (mounted && pageNumber != null) {
-            setState(() {
-              _currentPage = pageNumber;
-            });
-          }
-        },
+        ),
       ),
     );
   }

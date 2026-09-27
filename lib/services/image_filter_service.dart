@@ -26,10 +26,8 @@ class ImageFilterService {
     int maxDimension = 2048,
     int quality = 85,
   }) async {
-    // Fast path: if original, no rotation, and already reasonable size, pass through
-    if (filter == DocumentFilter.original &&
-        rotationQuarterTurns % 4 == 0 &&
-        inputBytes.lengthInBytes < 1024 * 1024) {
+    // Fast path: if original, no rotation, pass through original image bytes directly with zero latency
+    if (filter == DocumentFilter.original && rotationQuarterTurns % 4 == 0) {
       return inputBytes;
     }
 

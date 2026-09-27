@@ -1,14 +1,18 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:file_picker/file_picker.dart';
 import '../../core/utils/file_helper.dart';
 import '../../models/recent_file.dart';
 import '../../services/recent_files_service.dart';
-import '../pdf_editor/pdf_editor_screen.dart';
 import '../ocr/ocr_screen.dart';
 import '../signature_verify/signature_verify_screen.dart';
 import '../pdf_viewer/chrome_pdf_viewer_screen.dart';
 import '../document_converter/document_converter_screen.dart';
+import '../universal_studio/universal_studio_router.dart';
 import '../common/fidget_spinner_loader.dart';
+import '../gdrm/gdrm_export_dialog.dart';
+import '../gdrm/gdrm_viewer_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   final Function(int) onNavigateTab;
@@ -91,6 +95,39 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
+  Future<void> _lockFileWithGdrm() async {
+    try {
+      final result = await FilePicker.platform.pickFiles(
+        type: FileType.custom,
+        allowedExtensions: ['pdf', 'gdrm'],
+      );
+      if (result != null && result.files.isNotEmpty && result.files.single.path != null) {
+        final path = result.files.single.path!;
+        if (path.toLowerCase().endsWith('.gdrm')) {
+          if (!mounted) return;
+          Navigator.push(
+            context,
+            MaterialPageRoute(builder: (_) => GdrmViewerScreen(filePath: path)),
+          );
+        } else {
+          final bytes = await File(path).readAsBytes();
+          if (!mounted) return;
+          GdrmExportDialog.show(
+            context,
+            pdfBytes: bytes,
+            defaultFileName: FileHelper.getFileName(path),
+          );
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Could not open file: $e'), backgroundColor: Colors.red),
+        );
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final filtered = _recentFiles.where((f) => f.name.toLowerCase().contains(_searchQuery.toLowerCase())).toList();
@@ -149,19 +186,34 @@ class _HomeScreenState extends State<HomeScreen> {
                             ),
                           ),
                           const SizedBox(height: 14),
-                          ElevatedButton.icon(
-                            onPressed: () {
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(builder: (_) => const ChromePdfViewerScreen()),
-                              );
-                            },
-                            icon: const Icon(Icons.chrome_reader_mode, size: 16),
-                            label: const Text('Open in PDF Viewer'),
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: const Color(0xFF2563EB),
-                              foregroundColor: Colors.white,
-                            ),
+                          Wrap(
+                            spacing: 8,
+                            runSpacing: 8,
+                            children: [
+                              ElevatedButton.icon(
+                                onPressed: () => UniversalStudioRouter.pickAndOpenAnyFile(context),
+                                icon: const Icon(Icons.file_open, size: 16),
+                                label: const Text('Open & Edit Any File'),
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: const Color(0xFF10B981),
+                                  foregroundColor: Colors.white,
+                                ),
+                              ),
+                              ElevatedButton.icon(
+                                onPressed: () {
+                                  Navigator.push(
+                                    context,
+                                    MaterialPageRoute(builder: (_) => const ChromePdfViewerScreen()),
+                                  );
+                                },
+                                icon: const Icon(Icons.chrome_reader_mode, size: 16),
+                                label: const Text('Open in PDF Viewer'),
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: const Color(0xFF2563EB),
+                                  foregroundColor: Colors.white,
+                                ),
+                              ),
+                            ],
                           ),
                         ],
                       ),
@@ -173,7 +225,53 @@ class _HomeScreenState extends State<HomeScreen> {
                         color: Colors.white.withValues(alpha: 0.1),
                         borderRadius: BorderRadius.circular(12),
                       ),
-                      child: const Icon(Icons.picture_as_pdf, color: Colors.white, size: 36),
+                      child: const Icon(Icons.dashboard_customize, color: Colors.white, size: 36),
+                    ),
+                  ],
+                ),
+              ),
+
+              const SizedBox(height: 20),
+              // Quick Create New Documents Ribbon
+              const Text('Create New Document', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+              const SizedBox(height: 10),
+              SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: Row(
+                  children: [
+                    _buildCreateChip(
+                      icon: Icons.description,
+                      color: const Color(0xFF2563EB),
+                      label: 'Word Doc (.docx)',
+                      onTap: () => UniversalStudioRouter.createNewDocument(context, format: 'docx'),
+                    ),
+                    const SizedBox(width: 8),
+                    _buildCreateChip(
+                      icon: Icons.table_chart,
+                      color: const Color(0xFF10B981),
+                      label: 'Spreadsheet (.xlsx)',
+                      onTap: () => UniversalStudioRouter.createNewDocument(context, format: 'xlsx'),
+                    ),
+                    const SizedBox(width: 8),
+                    _buildCreateChip(
+                      icon: Icons.slideshow,
+                      color: const Color(0xFFF97316),
+                      label: 'Presentation (.pptx)',
+                      onTap: () => UniversalStudioRouter.createNewDocument(context, format: 'pptx'),
+                    ),
+                    const SizedBox(width: 8),
+                    _buildCreateChip(
+                      icon: Icons.html,
+                      color: const Color(0xFF0EA5E9),
+                      label: 'HTML Web Page',
+                      onTap: () => UniversalStudioRouter.createNewDocument(context, format: 'html'),
+                    ),
+                    const SizedBox(width: 8),
+                    _buildCreateChip(
+                      icon: Icons.code,
+                      color: const Color(0xFF6366F1),
+                      label: 'Code / JSON / Script',
+                      onTap: () => UniversalStudioRouter.createNewDocument(context, format: 'code'),
                     ),
                   ],
                 ),
@@ -183,7 +281,7 @@ class _HomeScreenState extends State<HomeScreen> {
               const Text('Quick Tools', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
               const SizedBox(height: 12),
 
-              // Tool Cards Grid (including Chrome PDF Viewer)
+              // Tool Cards Grid (including Universal Studio & Chrome PDF Viewer)
               LayoutBuilder(
                 builder: (context, constraints) {
                   final isWide = constraints.maxWidth > 700;
@@ -195,6 +293,13 @@ class _HomeScreenState extends State<HomeScreen> {
                     crossAxisSpacing: 12,
                     childAspectRatio: isWide ? 1.3 : 1.15,
                     children: [
+                      _buildToolCard(
+                        icon: Icons.auto_stories,
+                        iconColor: const Color(0xFF10B981),
+                        title: 'Universal Studio',
+                        desc: 'Edit DOCX, XLSX, PPTX, HTML',
+                        onTap: () => UniversalStudioRouter.pickAndOpenAnyFile(context),
+                      ),
                       _buildToolCard(
                         icon: Icons.chrome_reader_mode,
                         iconColor: const Color(0xFFEA4335),
@@ -269,6 +374,13 @@ class _HomeScreenState extends State<HomeScreen> {
                         },
                       ),
                       _buildToolCard(
+                        icon: Icons.shield_moon_rounded,
+                        iconColor: const Color(0xFF06B6D4),
+                        title: 'GDRM Zero-Trust',
+                        desc: 'Seal into secure .gdrm',
+                        onTap: _lockFileWithGdrm,
+                      ),
+                      _buildToolCard(
                         icon: Icons.lock,
                         iconColor: const Color(0xFFD97706),
                         title: 'Lock & Protect',
@@ -323,7 +435,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   shrinkWrap: true,
                   physics: const NeverScrollableScrollPhysics(),
                   itemCount: filtered.length,
-                  separatorBuilder: (_, __) => const SizedBox(height: 8),
+                  separatorBuilder: (_, _) => const SizedBox(height: 8),
                   itemBuilder: (context, index) {
                     final item = filtered[index];
                     final dateStr = DateFormat('MMM d, y � h:mm a').format(item.modifiedDate);
@@ -346,12 +458,7 @@ class _HomeScreenState extends State<HomeScreen> {
                           onSelected: (action) {
                             switch (action) {
                               case 'open':
-                                Navigator.push(
-                                  context,
-                                  MaterialPageRoute(
-                                    builder: (_) => ChromePdfViewerScreen(initialFilePath: item.path),
-                                  ),
-                                );
+                                UniversalStudioRouter.openFileInStudio(context, item.path);
                                 break;
                               case 'verify':
                                 Navigator.push(
@@ -363,14 +470,6 @@ class _HomeScreenState extends State<HomeScreen> {
                                 break;
                               case 'share':
                                 FileHelper.shareFile(item.path);
-                                break;
-                              case 'edit':
-                                Navigator.push(
-                                  context,
-                                  MaterialPageRoute(
-                                    builder: (_) => PdfEditorScreen(initialFilePath: item.path),
-                                  ),
-                                );
                                 break;
                               case 'ocr':
                                 Navigator.push(
@@ -389,22 +488,16 @@ class _HomeScreenState extends State<HomeScreen> {
                             }
                           },
                           itemBuilder: (ctx) => [
-                            const PopupMenuItem(value: 'open', child: Text('Open in Viewer')),
+                            const PopupMenuItem(value: 'open', child: Text('Open / Edit in Studio')),
                             const PopupMenuItem(value: 'verify', child: Text('Verify Signatures')),
                             const PopupMenuItem(value: 'share', child: Text('Share')),
-                            const PopupMenuItem(value: 'edit', child: Text('Edit in Studio')),
                             const PopupMenuItem(value: 'ocr', child: Text('Read Text (OCR)')),
                             const PopupMenuItem(value: 'rename', child: Text('Rename')),
                             const PopupMenuItem(value: 'delete', child: Text('Delete', style: TextStyle(color: Colors.red))),
                           ],
                         ),
                         onTap: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (_) => ChromePdfViewerScreen(initialFilePath: item.path),
-                            ),
-                          );
+                          UniversalStudioRouter.openFileInStudio(context, item.path);
                         },
                       ),
                     );
@@ -414,6 +507,22 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
         ),
       ),
+    );
+  }
+
+  Widget _buildCreateChip({
+    required IconData icon,
+    required Color color,
+    required String label,
+    required VoidCallback onTap,
+  }) {
+    return ActionChip(
+      avatar: Icon(icon, color: color, size: 16),
+      label: Text(label, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 12)),
+      backgroundColor: Colors.white,
+      side: const BorderSide(color: Color(0xFFE2E8F0)),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+      onPressed: onTap,
     );
   }
 

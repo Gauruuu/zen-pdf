@@ -12,6 +12,7 @@ import '../../services/pdf_organizer_service.dart';
 import '../../services/pdf_security_service.dart';
 import '../../services/pdf_signature_verifier_service.dart';
 import '../signature_verify/signature_verify_screen.dart';
+import '../gdrm/gdrm_export_dialog.dart';
 import 'widgets/signature_dialog.dart';
 import 'widgets/text_box_dialog.dart';
 import 'widgets/watermark_dialog.dart';
@@ -551,6 +552,22 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
             actions: [
               TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Close')),
               OutlinedButton.icon(
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: const Color(0xFF06B6D4),
+                  side: const BorderSide(color: Color(0xFF06B6D4)),
+                ),
+                onPressed: () {
+                  Navigator.pop(ctx);
+                  GdrmExportDialog.show(
+                    context,
+                    pdfBytes: currentBytes,
+                    defaultFileName: fileName,
+                  );
+                },
+                icon: const Icon(Icons.shield_moon_rounded, size: 16),
+                label: const Text('Export .gdrm'),
+              ),
+              OutlinedButton.icon(
                 onPressed: () {
                   Navigator.pop(ctx);
                   FileHelper.shareFile(savedFile.path);
@@ -590,6 +607,17 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
         title: Text(_pdfName ?? 'Edit & Sign PDF'),
         actions: [
           if (_pdfBytes != null) ...[
+            IconButton(
+              icon: const Icon(Icons.shield_moon_rounded, color: Color(0xFF06B6D4)),
+              tooltip: 'Export as .gdrm File',
+              onPressed: () {
+                GdrmExportDialog.show(
+                  context,
+                  pdfBytes: _pdfBytes!,
+                  defaultFileName: _pdfName ?? 'Edited_Document',
+                );
+              },
+            ),
             IconButton(
               icon: const Icon(Icons.verified_user_outlined),
               tooltip: 'Verify Signatures',
