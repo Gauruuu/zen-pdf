@@ -1,5 +1,5 @@
-﻿import os
-from reportlab.lib.pagesizes import letter, A4
+import os
+from reportlab.lib.pagesizes import A4
 from reportlab.lib import colors
 from reportlab.lib.units import inch
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
@@ -32,7 +32,7 @@ class NumberedCanvas(canvas.Canvas):
         
         # Header (pages > 1)
         if self._pageNumber > 1:
-            self.drawString(54, 11.2 * inch, "Zen PDF Studio — User Guide & Documentation")
+            self.drawString(54, 11.2 * inch, "Zen PDF Studio & GDRM Ecosystem — Official Documentation")
             self.setStrokeColor(colors.HexColor("#E2E8F0"))
             self.setLineWidth(0.75)
             self.line(54, 11.1 * inch, 8.27 * inch - 54, 11.1 * inch)
@@ -40,7 +40,7 @@ class NumberedCanvas(canvas.Canvas):
         # Footer
         footer_text = f"Page {self._pageNumber} of {page_count}"
         self.drawRightString(8.27 * inch - 54, 36, footer_text)
-        self.drawString(54, 36, "Zen PDF • 100% Free • Offline First • Zero Ads")
+        self.drawString(54, 36, "Zen PDF Studio • 100% Offline • Zero-Trust Security • Zero Ads")
         self.setStrokeColor(colors.HexColor("#E2E8F0"))
         self.setLineWidth(0.75)
         self.line(54, 48, 8.27 * inch - 54, 48)
@@ -50,10 +50,10 @@ def create_documentation_pdf(output_filename):
     doc = SimpleDocTemplate(
         output_filename,
         pagesize=A4,
-        leftMargin=54,
-        rightMargin=54,
-        topMargin=54,
-        bottomMargin=54
+        leftMargin=50,
+        rightMargin=50,
+        topMargin=50,
+        bottomMargin=50
     )
     
     styles = getSampleStyleSheet()
@@ -62,39 +62,39 @@ def create_documentation_pdf(output_filename):
     title_style = ParagraphStyle(
         'DocTitle',
         fontName='Helvetica-Bold',
-        fontSize=24,
-        leading=28,
+        fontSize=22,
+        leading=26,
         textColor=colors.HexColor("#0F172A"),
-        spaceAfter=6
+        spaceAfter=4
     )
     
     subtitle_style = ParagraphStyle(
         'DocSubtitle',
         fontName='Helvetica',
-        fontSize=13,
-        leading=17,
+        fontSize=12,
+        leading=16,
         textColor=colors.HexColor("#475569"),
-        spaceAfter=14
+        spaceAfter=12
     )
     
     h1_style = ParagraphStyle(
         'Heading1_Custom',
         fontName='Helvetica-Bold',
-        fontSize=15,
-        leading=19,
+        fontSize=13.5,
+        leading=17,
         textColor=colors.HexColor("#0F172A"),
-        spaceBefore=16,
-        spaceAfter=8,
+        spaceBefore=12,
+        spaceAfter=6,
         keepWithNext=True
     )
     
     h2_style = ParagraphStyle(
         'Heading2_Custom',
         fontName='Helvetica-Bold',
-        fontSize=12,
-        leading=16,
+        fontSize=11,
+        leading=15,
         textColor=colors.HexColor("#1E3A8A"),
-        spaceBefore=10,
+        spaceBefore=8,
         spaceAfter=4,
         keepWithNext=True
     )
@@ -102,140 +102,133 @@ def create_documentation_pdf(output_filename):
     body_style = ParagraphStyle(
         'Body_Custom',
         fontName='Helvetica',
-        fontSize=10,
-        leading=14.5,
+        fontSize=9.5,
+        leading=13.5,
         textColor=colors.HexColor("#334155"),
-        spaceAfter=6
+        spaceAfter=5
     )
     
     bullet_style = ParagraphStyle(
         'Bullet_Custom',
         fontName='Helvetica',
-        fontSize=10,
-        leading=14,
+        fontSize=9.5,
+        leading=13.5,
         textColor=colors.HexColor("#334155"),
-        leftIndent=14,
-        spaceAfter=4
+        leftIndent=12,
+        spaceAfter=3.5
     )
     
     tip_box_style = ParagraphStyle(
         'Tip_Text',
         fontName='Helvetica',
-        fontSize=9.5,
-        leading=13.5,
+        fontSize=9,
+        leading=13,
         textColor=colors.HexColor("#065F46")
     )
     
+    gdrm_box_style = ParagraphStyle(
+        'Gdrm_Text',
+        fontName='Helvetica',
+        fontSize=9,
+        leading=13,
+        textColor=colors.HexColor("#0E7490")
+    )
+
     story = []
     
     # Title Banner Block
-    story.append(Paragraph("Zen PDF Studio", title_style))
-    story.append(Paragraph("Simple & Sober User Manual — Plain English Guide", subtitle_style))
-    story.append(HRFlowable(width="100%", thickness=1.5, color=colors.HexColor("#2563EB"), spaceAfter=14))
+    story.append(Paragraph("Zen PDF Studio & GDRM Ecosystem", title_style))
+    story.append(Paragraph("Comprehensive User Guide, Architecture & Technical Manual", subtitle_style))
+    story.append(HRFlowable(width="100%", thickness=1.5, color=colors.HexColor("#2563EB"), spaceAfter=10))
     
     # Overview Box
-    intro_html = """<b>What is Zen PDF?</b><br/>
-Zen PDF is a free, fast, and simple tool to view, edit, sign, and organize PDF documents on your Android phone and Windows PC. Everything runs completely on your device without internet, and no personal files are ever uploaded."""
-    intro_table = Table([[Paragraph(intro_html, body_style)]], colWidths=[500])
+    intro_html = """<b>Executive Overview:</b><br/>
+<b>Zen PDF Studio</b> is a modern, ultra-fast, and privacy-first universal document application for Android and Windows. It provides native in-app editing studios for Office documents (Word, Excel, PowerPoint), code, and HTML, combined with enterprise-grade <b>GDRM (Granular Digital Right Manager) Zero-Trust</b> encryption, Aadhaar/PAN cryptographic signature verification, and instant zero-latency photo-to-PDF compilation."""
+    intro_table = Table([[Paragraph(intro_html, body_style)]], colWidths=[495])
     intro_table.setStyle(TableStyle([
         ('BACKGROUND', (0,0), (-1,-1), colors.HexColor("#F8FAFC")),
         ('BOX', (0,0), (-1,-1), 1, colors.HexColor("#CBD5E1")),
-        ('TOPPADDING', (0,0), (-1,-1), 10),
-        ('BOTTOMPADDING', (0,0), (-1,-1), 10),
-        ('LEFTPADDING', (0,0), (-1,-1), 12),
-        ('RIGHTPADDING', (0,0), (-1,-1), 12),
+        ('TOPPADDING', (0,0), (-1,-1), 8),
+        ('BOTTOMPADDING', (0,0), (-1,-1), 8),
+        ('LEFTPADDING', (0,0), (-1,-1), 10),
+        ('RIGHTPADDING', (0,0), (-1,-1), 10),
     ]))
     story.append(intro_table)
-    story.append(Spacer(1, 14))
-    
-    # SECTION 1: PDF VIEWER
-    story.append(Paragraph("1. Chrome-Style PDF Viewer", h1_style))
-    story.append(Paragraph("Zen PDF includes a clean, dark-canvas PDF viewer just like Google Chrome:", body_style))
-    story.append(Paragraph("• <b>Instant Page Opening:</b> PDFs open in under a second with smooth 60fps scrolling.", bullet_style))
-    story.append(Paragraph("• <b>Infinite Zoom:</b> Zoom in from 10% up to 10,000% to inspect tiny text, barcodes, or fine print without blurry pixels.", bullet_style))
-    story.append(Paragraph("• <b>Page Thumbnails:</b> Tap the <i>Thumbnails</i> button on the top-left to view page cards and jump directly to any page.", bullet_style))
-    story.append(Paragraph("• <b>Rotate & Print:</b> Tap <i>Rotate (↻)</i> to turn sideways pages upright, or tap <i>Print</i> to print directly.", bullet_style))
-    story.append(Paragraph("• <b>Open from WhatsApp or Gmail:</b> When you tap any PDF on your phone, choose <b>Zen PDF</b> in the 'Open With' menu to view it immediately.", bullet_style))
     story.append(Spacer(1, 10))
     
-    # SECTION 2: VERIFY SIGNATURES
-    story.append(Paragraph("2. Verifying Digital Signatures (Aadhaar, PAN & Govt Forms)", h1_style))
-    story.append(Paragraph("Many official documents in India (like Aadhaar cards, e-PAN, bank statements, and tax forms) have digital signatures that show a yellow question mark (?) when unverified. Zen PDF verifies them just like Adobe Acrobat:", body_style))
-    story.append(Paragraph("• <b>Step 1:</b> Tap <b>Verify Signatures</b> on the Home screen and choose your PDF file.", bullet_style))
-    story.append(Paragraph("• <b>Step 2:</b> If the file is locked (like an Aadhaar PDF), enter the password (e.g. first 4 letters of name in capital + birth year).", bullet_style))
-    story.append(Paragraph("• <b>Step 3:</b> Zen PDF reads the cryptographic SHA-256 certificate inside the document.", bullet_style))
-    story.append(Paragraph("• <b>Step 4:</b> The yellow question mark <b>(?)</b> turns into an official <b>Green Tick (✔)</b> with signer name, date, and reason.", bullet_style))
-    story.append(Spacer(1, 10))
-
-    # SECTION 3: SIGN PDFS DIGITALLY
-    story.append(Paragraph("3. Signing PDFs Digitally", h1_style))
-    story.append(Paragraph("You can add your own verified digital signature stamp to any contract, application, or form:", body_style))
-    story.append(Paragraph("• Open the document in <b>Edit & Sign PDF</b>.", bullet_style))
-    story.append(Paragraph("• Tap <b>Sign Digitally</b> in the top toolbar.", bullet_style))
-    story.append(Paragraph("• Type your Name, Reason (e.g. <i>'I approve this document'</i> or <i>'Document Authenticity Verified'</i>), and Location.", bullet_style))
-    story.append(Paragraph("• Tap <b>Apply Digital Signature</b> and place the signature stamp anywhere on the page.", bullet_style))
-    story.append(Spacer(1, 10))
+    # SECTION 1: GDRM ZERO-TRUST ECOSYSTEM
+    story.append(Paragraph("1. GDRM Zero-Trust Encryption & Cryptographic Container (.gdrm)", h1_style))
+    story.append(Paragraph("Zen PDF integrates the <b>GDRM (Granular Digital Right Manager)</b> ecosystem (powered by <code>gdrm_sdk</code>), allowing users to lock PDF documents into military-grade encrypted <code>.gdrm</code> packages with hardware and biometric-level security policies:", body_style))
     
-    # SECTION 4: TURNING PICTURES TO PDF
-    story.append(Paragraph("4. Turning Photos & Scans into PDF", h1_style))
-    story.append(Paragraph("Easily turn camera photos or gallery pictures into clean single or multi-page PDFs:", body_style))
-    story.append(Paragraph("• Tap <b>Images to PDF</b> and pick one or more pictures.", bullet_style))
-    story.append(Paragraph("• <b>Filters:</b> Choose <i>Clean Scan</i>, <i>Black & White</i>, or <i>Vivid</i> to remove shadows and enhance text.", bullet_style))
-    story.append(Paragraph("• <b>Reorder:</b> Long-press and drag any photo to arrange page order.", bullet_style))
-    story.append(Paragraph("• <b>Page Settings:</b> Choose Page Size (A4, Letter) and Margins (None, Normal).", bullet_style))
-    story.append(Paragraph("• Tap <b>Convert to PDF</b> to save and share.", bullet_style))
-    story.append(Spacer(1, 10))
+    story.append(Paragraph("• <b>Machine Hardware Binding (K<sub>device</sub>):</b> Cryptographically locks document decryption exclusively to the authoring machine or a specified target device ID. If forwarded to another PC or phone, the container remains mathematically impenetrable.", bullet_style))
+    story.append(Paragraph("• <b>ChronoLock Time Bomb Expiry:</b> Configure auto-expiring documents (1 hour, 24 hours, 3 days, 7 days, or precise UTC timestamps). After expiration, access is permanently refused.", bullet_style))
+    story.append(Paragraph("• <b>Target User Locking:</b> Seal sensitive materials to a designated <code>@username</code> identity.", bullet_style))
+    story.append(Paragraph("• <b>Indelible Forensic Watermark:</b> Overlays dynamic, non-removable diagonal watermarks with host hardware fingerprint, IP, and timestamp across all rendered pages.", bullet_style))
+    story.append(Paragraph("• <b>Physical Print & Clipboard Restrictions:</b> Hard-disables OS text extraction, screenshots, and unauthorized physical printing.", bullet_style))
+    story.append(Paragraph("• <b>SnailTrail Immutable Audit Logs:</b> Embedded cryptographic ledger tracking authoring timestamp, device fingerprint, and tampering verification.", bullet_style))
+    story.append(Spacer(1, 8))
 
-    # SECTION 5: EDITING & WHITEOUT
-    story.append(Paragraph("5. Editing Text & Whiteout (Cover-up)", h1_style))
-    story.append(Paragraph("Fix text or hide sensitive numbers in any existing PDF document:", body_style))
-    story.append(Paragraph("• <b>Replace Words:</b> Type the word to find and the replacement word to fix typos cleanly.", bullet_style))
-    story.append(Paragraph("• <b>Whiteout Tool:</b> Draw a clean white box over private details (like account numbers or phone numbers) to hide them.", bullet_style))
-    story.append(Paragraph("• <b>Draw Signature:</b> Use your finger or mouse to draw a handwritten ink signature and place it on the dotted line.", bullet_style))
-    story.append(Paragraph("• <b>Watermark:</b> Add text watermarks like <i>CONFIDENTIAL</i> or <i>COPY</i> across pages.", bullet_style))
-    story.append(Spacer(1, 10))
+    # SECTION 2: UNIVERSAL DOCUMENT STUDIOS
+    story.append(Paragraph("2. Universal In-App Document Studios", h1_style))
+    story.append(Paragraph("Zen PDF goes beyond traditional PDF readers with 5 built-in, 100% offline document creation & editing studios:", body_style))
+    story.append(Paragraph("• <b>Word Studio (.docx, .doc):</b> Rich-text word processor with heading presets, custom typography, alignments, image inserts, and instant Word/PDF export.", bullet_style))
+    story.append(Paragraph("• <b>Spreadsheet Studio (.xlsx, .xls, .csv):</b> High-performance 2D formula grid supporting <code>=SUM</code>, <code>=AVERAGE</code>, <code>=COUNT</code>, cell styling, auto-formatting, and multi-sheet workbooks.", bullet_style))
+    story.append(Paragraph("• <b>Presentation Studio (.pptx, .ppt):</b> 16:9 interactive slide deck designer with animated thumbnail strip, layout templates, color themes, and full-screen presentation mode.", bullet_style))
+    story.append(Paragraph("• <b>HTML Web Studio (.html, .htm):</b> Triple-view HTML/CSS editor with live real-time split-screen DOM rendering, viewport switcher (Mobile/Tablet/Desktop), and auto-formatter.", bullet_style))
+    story.append(Paragraph("• <b>Universal Code & Text IDE:</b> High-speed code editor for 50+ programming languages (JSON, Dart, JS, Python, SQL, XML, TXT) with search & replace and line counters.", bullet_style))
+    story.append(Spacer(1, 8))
 
-    # SECTION 6: MERGE & SPLIT PAGES
-    story.append(Paragraph("6. Combining & Splitting Pages", h1_style))
-    story.append(Paragraph("• <b>Combine PDFs:</b> Select 2 or more PDF files to join them into one single clean file.", bullet_style))
-    story.append(Paragraph("• <b>Split Pages:</b> Enter page numbers (e.g. <i>1-3, 5</i>) to extract only the specific pages you need.", bullet_style))
-    story.append(Spacer(1, 10))
+    # SECTION 3: FAST-PATH IMAGE TO PDF
+    story.append(Paragraph("3. Zero-Latency High-Speed Images to PDF", h1_style))
+    story.append(Paragraph("Optimized image-to-PDF compilation pipeline eliminates CPU bottle-necks:", body_style))
+    story.append(Paragraph("• <b>Direct Byte Pass-Through:</b> When images are in standard orientation without post-filters, raw byte streams are embedded directly into PDF raster pages, creating multi-page PDFs instantly.", bullet_style))
+    story.append(Paragraph("• <b>Optional Enhancement Filters:</b> Clean Scan, Document Magic Color, and B&W high-contrast modes available for specialized document scanning.", bullet_style))
+    story.append(Paragraph("• <b>Direct .gdrm Export:</b> One-tap option to seal photo scans directly into zero-trust encrypted <code>.gdrm</code> files without intermediary saving.", bullet_style))
+    story.append(Spacer(1, 8))
 
-    # SECTION 7: PASSWORDS & SECURITY
-    story.append(Paragraph("7. Lock & Unlock Passwords", h1_style))
-    story.append(Paragraph("• <b>Lock with Password:</b> Add AES-256 password protection to keep sensitive financial or legal files private.", bullet_style))
-    story.append(Paragraph("• <b>Unlock Protected Files:</b> Type the existing password once to permanently remove password lock from statements.", bullet_style))
-    story.append(Spacer(1, 10))
+    # SECTION 4: UNIVERSAL OS INTENT ASSOCIATIONS & BACK-TO-APP
+    story.append(Paragraph("4. Universal 'Open With' Association & Back-to-App Flow", h1_style))
+    story.append(Paragraph("Seamless operating system integration on Android and Windows:", body_style))
+    story.append(Paragraph("• <b>Universal File Associations:</b> Zen PDF is registered as the default handler for <code>.pdf</code>, <code>.gdrm</code>, <code>.docx</code>, <code>.pptx</code>, <code>.xlsx</code>, <code>.csv</code>, <code>.html</code>, <code>.json</code>, and <code>.txt</code>.", bullet_style))
+    story.append(Paragraph("• <b>Seamless Back-to-App Exit Flow:</b> When documents are opened from WhatsApp, Gmail, Telegram, or file managers, closing the viewer immediately invokes <code>SystemNavigator.pop()</code> to return directly to the calling app without trapping the user on Zen PDF's home screen.", bullet_style))
+    story.append(Spacer(1, 8))
 
-    # SECTION 8: QUICK REFERENCE TABLE
-    story.append(Paragraph("8. Quick Tools Summary", h1_style))
+    # SECTION 5: SIGNATURE VERIFICATION & PDF TOOLS
+    story.append(Paragraph("5. Digital Signature Verification & Stamping (Aadhaar & PAN)", h1_style))
+    story.append(Paragraph("• <b>Aadhaar & PAN Certificate Verification:</b> Analyzes embedded SHA-256 PKCS#7 digital signatures, transforming unverified yellow question marks (<b>?</b>) into authentic Adobe Acrobat green ticks (<b>✔</b>).", bullet_style))
+    story.append(Paragraph("• <b>Digital Signing:</b> Stamp verified digital certificates with signer name, location, timestamp, and custom approval reasons.", bullet_style))
+    story.append(Paragraph("• <b>Whiteout & Annotations:</b> Cover sensitive numbers or add ink signatures with pixel precision.", bullet_style))
+    story.append(Paragraph("• <b>Page Organizer:</b> Drag-and-drop page reordering, merging, rotating, and splitting.", bullet_style))
+    story.append(Spacer(1, 8))
+
+    # SECTION 6: QUICK SPECIFICATION TABLE
+    story.append(Paragraph("6. Feature Specifications & Compatibility Matrix", h1_style))
     table_data = [
-        [Paragraph("<b>Tool</b>", h2_style), Paragraph("<b>What it does</b>", h2_style), Paragraph("<b>Common Use Case</b>", h2_style)],
-        [Paragraph("<b>PDF Viewer</b>", body_style), Paragraph("Fast viewing with infinite zoom & rotate", body_style), Paragraph("Reading receipts, bills, eBooks", body_style)],
-        [Paragraph("<b>Verify Signatures</b>", body_style), Paragraph("Turns yellow ? into green ✔ tick mark", body_style), Paragraph("Aadhaar cards, PAN cards, invoices", body_style)],
-        [Paragraph("<b>Sign Digitally</b>", body_style), Paragraph("Places official Acrobat certificate stamp", body_style), Paragraph("Signing letters, contracts, forms", body_style)],
-        [Paragraph("<b>Images to PDF</b>", body_style), Paragraph("Scans & enhances photos to PDF", body_style), Paragraph("Notes, bills, ID proofs, receipts", body_style)],
-        [Paragraph("<b>Edit in Studio</b>", body_style), Paragraph("Whiteout, draw signature, fix text", body_style), Paragraph("Hiding sensitive data, signing forms", body_style)],
-        [Paragraph("<b>Manage Pages</b>", body_style), Paragraph("Merge multiple files or split pages", body_style), Paragraph("Combining bank statements, reports", body_style)],
-        [Paragraph("<b>Lock & Protect</b>", body_style), Paragraph("Set or remove AES-256 passwords", body_style), Paragraph("Securing confidential files", body_style)]
+        [Paragraph("<b>Component</b>", h2_style), Paragraph("<b>Key Capabilities</b>", h2_style), Paragraph("<b>Supported Formats</b>", h2_style)],
+        [Paragraph("<b>GDRM Security</b>", body_style), Paragraph("Hardware Lock ($K_{device}$), ChronoLock, Watermark, SnailTrail", body_style), Paragraph(".gdrm, .pdf", body_style)],
+        [Paragraph("<b>Universal Studio</b>", body_style), Paragraph("Word, Spreadsheet, Presentation, HTML, Code IDE", body_style), Paragraph(".docx, .xlsx, .pptx, .html, .json, .txt", body_style)],
+        [Paragraph("<b>Chrome PDF Viewer</b>", body_style), Paragraph("120 FPS render, search, infinite zoom, rotate, thumbnails", body_style), Paragraph(".pdf, .gdrm", body_style)],
+        [Paragraph("<b>Fast Image Scanner</b>", body_style), Paragraph("Zero-latency pass-through, multi-page binding", body_style), Paragraph(".jpg, .png, .webp, .heic", body_style)],
+        [Paragraph("<b>Signature Engine</b>", body_style), Paragraph("PKCS#7 SHA-256 verification & Adobe Acrobat checkmark", body_style), Paragraph("Aadhaar, PAN, Invoices, Contracts", body_style)],
+        [Paragraph("<b>OS Integration</b>", body_style), Paragraph("System 'Open With' intent + Instant Back-to-App pop", body_style), Paragraph("Android 7.0+ / Windows 10/11", body_style)]
     ]
-    summary_table = Table(table_data, colWidths=[110, 210, 180])
+    summary_table = Table(table_data, colWidths=[105, 230, 160])
     summary_table.setStyle(TableStyle([
         ('BACKGROUND', (0,0), (-1,0), colors.HexColor("#F1F5F9")),
-        ('BOTTOMPADDING', (0,0), (-1,-1), 6),
-        ('TOPPADDING', (0,0), (-1,-1), 6),
-        ('LEFTPADDING', (0,0), (-1,-1), 8),
-        ('RIGHTPADDING', (0,0), (-1,-1), 8),
+        ('BOTTOMPADDING', (0,0), (-1,-1), 5),
+        ('TOPPADDING', (0,0), (-1,-1), 5),
+        ('LEFTPADDING', (0,0), (-1,-1), 6),
+        ('RIGHTPADDING', (0,0), (-1,-1), 6),
         ('GRID', (0,0), (-1,-1), 0.5, colors.HexColor("#CBD5E1")),
     ]))
     story.append(summary_table)
-    story.append(Spacer(1, 14))
+    story.append(Spacer(1, 10))
 
-    # SECTION 9: PRIVACY PROMISE
-    story.append(Paragraph("9. Privacy & Safety Guarantee", h1_style))
-    privacy_text = """<b>Your files never leave your device.</b><br/>
-Zen PDF is designed with an offline-first architecture. It does not contain ads, tracking trackers, or telemetry. All password checking, digital signature verification, photo scanning, and PDF editing happen directly in your phone or PC memory."""
-    privacy_box = Table([[Paragraph(privacy_text, tip_box_style)]], colWidths=[500])
+    # SECTION 7: PRIVACY & SECURITY COMMITMENT
+    story.append(Paragraph("7. Privacy & Offline-First Security Guarantee", h1_style))
+    privacy_text = """<b>Zero Cloud Dependency • 100% On-Device Privacy:</b><br/>
+Zen PDF Studio and the GDRM SDK operate entirely on-device. No telemetry, analytics, ad networks, or cloud trackers are bundled. All cryptographic hashing, document rendering, and PDF conversions occur within isolated local application memory."""
+    privacy_box = Table([[Paragraph(privacy_text, tip_box_style)]], colWidths=[495])
     privacy_box.setStyle(TableStyle([
         ('BACKGROUND', (0,0), (-1,-1), colors.HexColor("#F0FDF4")),
         ('BOX', (0,0), (-1,-1), 1, colors.HexColor("#BBF7D0")),
@@ -247,7 +240,8 @@ Zen PDF is designed with an offline-first architecture. It does not contain ads,
     story.append(privacy_box)
 
     doc.build(story, canvasmaker=NumberedCanvas)
-    print(f"Documentation PDF created at: {output_filename}")
+    print(f"Documentation PDF generated successfully at: {output_filename}")
 
 if __name__ == '__main__':
     create_documentation_pdf("Zen_PDF_User_Guide.pdf")
+    create_documentation_pdf("website/downloads/Zen_PDF_User_Guide.pdf")
